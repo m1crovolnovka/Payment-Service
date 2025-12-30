@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -79,6 +80,12 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
+    public PaymentResponseDto getPaymentById(String id) {
+        return paymentRepository.findById(id).map(paymentMapper::toResponse).orElseThrow();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PaymentResponseDto> getPaymentsByUserId(UUID userId) {
         return paymentRepository.findByUserId(userId).stream()
                 .map(paymentMapper::toResponse)
@@ -103,14 +110,14 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public BigDecimal getTotalSumForUser(UUID userId, OffsetDateTime startDate, OffsetDateTime endDate) {
-        BigDecimal sum = paymentRepository.getTotalSumByUserIdAndDateRange(userId, startDate, endDate);
+    public BigDecimal getTotalSumForUser(UUID userId, Instant startDate, Instant endDate) {
+        BigDecimal sum = paymentRepository.getTotalSumByUserIdAndDateRange(userId.toString(), startDate, endDate);
         return sum != null ? sum : BigDecimal.ZERO;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public BigDecimal getTotalSumForAll(OffsetDateTime startDate, OffsetDateTime endDate) {
+    public BigDecimal getTotalSumForAll(Instant startDate, Instant endDate) {
         BigDecimal sum = paymentRepository.getTotalSumForDateRange(startDate, endDate);
         return sum != null ? sum : BigDecimal.ZERO;
     }

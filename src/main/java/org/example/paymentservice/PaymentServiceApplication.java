@@ -23,26 +23,4 @@ public class PaymentServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(PaymentServiceApplication.class, args);
     }
-    @Bean
-    public CommandLineRunner testMongoConnection(PaymentRepository repository) {
-        return args -> {
-            try {
-                System.out.println(">>> Запуск теста MongoDB...");
-
-                Payment testPayment = Payment.builder()
-                        .orderId(UUID.randomUUID())
-                        .userId(UUID.randomUUID())
-                        .status(PaymentStatus.SUCCESS) // Проверь, что такой статус есть в enum
-                        .paymentAmount(new BigDecimal("100.50"))
-                        .build();
-
-                Payment saved = repository.save(testPayment);
-                System.out.println(">>> Успешно сохранено! ID: " + saved.getId());
-
-            } catch (Exception e) {
-                System.err.println(">>> Ошибка при тесте БД: " + e.getMessage());
-                e.printStackTrace();
-            }
-        };
-    }
 }

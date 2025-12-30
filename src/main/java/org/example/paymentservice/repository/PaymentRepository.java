@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -19,15 +20,15 @@ public interface PaymentRepository extends MongoRepository<Payment, String> {
     List<Payment> findByStatus(PaymentStatus status);
 
     @Aggregation(pipeline = {
-            "{ '$match': { 'user_id': ?0, 'timestamp': { '$gte': ?1, '$lte': ?2 } } }",
+            "{ '$match': { 'userId': ?0, 'timestamp': { '$gte': ?1, '$lte': ?2 } } }",
             "{ '$group': { '_id': null, 'total': { '$sum': '$paymentAmount' } } }"
     })
-    BigDecimal getTotalSumByUserIdAndDateRange(UUID userId, OffsetDateTime start, OffsetDateTime end);
+    BigDecimal getTotalSumByUserIdAndDateRange(String userId, Instant start, Instant end);
 
     @Aggregation(pipeline = {
             "{ '$match': { 'timestamp': { '$gte': ?0, '$lte': ?1 } } }",
             "{ '$group': { '_id': null, 'total': { '$sum': '$paymentAmount' } } }"
     })
-    BigDecimal getTotalSumForDateRange(OffsetDateTime start, OffsetDateTime end);
+    BigDecimal getTotalSumForDateRange(Instant start, Instant end);
 }
 
