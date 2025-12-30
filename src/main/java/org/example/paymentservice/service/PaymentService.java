@@ -1,7 +1,7 @@
 package org.example.paymentservice.service;
 
-import org.example.paymentservice.dto.PaymentRequest;
-import org.example.paymentservice.dto.PaymentResponse;
+import org.example.paymentservice.dto.PaymentRequestDto;
+import org.example.paymentservice.dto.PaymentResponseDto;
 import org.example.paymentservice.entity.PaymentStatus;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -10,11 +10,11 @@ import java.util.UUID;
 
 public interface PaymentService {
 
-    PaymentResponse createPayment(PaymentRequest request);
+    PaymentResponseDto createPayment(PaymentRequestDto request);
 
-    List<PaymentResponse> getPaymentsByUserId(UUID userId);
-    List<PaymentResponse> getPaymentsByOrderId(UUID orderId);
-    List<PaymentResponse> getPaymentsByStatus(PaymentStatus status);
+    List<PaymentResponseDto> getPaymentsByUserId(UUID userId);
+    List<PaymentResponseDto> getPaymentsByOrderId(UUID orderId);
+    List<PaymentResponseDto> getPaymentsByStatus(PaymentStatus status);
 
     BigDecimal getTotalSumForUser(UUID userId, OffsetDateTime startDate, OffsetDateTime endDate);
     BigDecimal getTotalSumForAll(OffsetDateTime startDate, OffsetDateTime endDate);

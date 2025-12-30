@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-public record PaymentResponse(
+public record PaymentResponseDto(
         UUID id,
         UUID orderId,
         UUID userId,
