@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.paymentservice.client.RandomServiceClient;
 import org.example.paymentservice.dto.PaymentRequestDto;
 import org.example.paymentservice.dto.PaymentResponseDto;
+import org.example.paymentservice.dto.TotalAmountProjection;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.entity.PaymentStatus;
 import org.example.paymentservice.mapper.PaymentMapper;
@@ -47,11 +48,15 @@ class PaymentServiceImplTest {
     private UUID orderId;
     private Payment payment;
     private PaymentResponseDto responseDto;
+    private Instant start;
+    private Instant end;
 
     @BeforeEach
     void setUp() {
         userId = UUID.randomUUID();
         orderId = UUID.randomUUID();
+        start = Instant.now().minusSeconds(3600);
+        end = Instant.now();
         payment = new Payment();
         payment.setId("test-id");
         payment.setOrderId(orderId);
@@ -105,15 +110,6 @@ class PaymentServiceImplTest {
         verify(paymentRepository).save(any());
     }
 
-    @Test
-    void getTotalSumForUser_ReturnZeroWhenNull() {
-        Instant now = Instant.now();
-        when(paymentRepository.getTotalSumByUserIdAndDateRange(anyString(), any(), any())).thenReturn(null);
-
-        BigDecimal result = paymentService.getTotalSumForUser(userId, now, now);
-
-        assertThat(result).isEqualByComparingTo(BigDecimal.ZERO);
-    }
 
     @Test
     void getPaymentsByStatus_Success() {
@@ -189,25 +185,61 @@ class PaymentServiceImplTest {
 
     @Test
     void getTotalSumForAll_Success() {
-        Instant start = Instant.now().minusSeconds(3600);
-        Instant end = Instant.now();
-        BigDecimal expectedSum = new BigDecimal("500.75");
-        when(paymentRepository.getTotalSumForDateRange(start, end)).thenReturn(expectedSum);
+        List<Payment> payments = List.of(
+                Payment.builder()
+                        .paymentAmount(new BigDecimal("200.50"))
+                        .build(),
+                Payment.builder()
+                        .paymentAmount(new BigDecimal("300.25"))
+                        .build()
+        );
+
+        when(paymentRepository.findByTimestampBetween(start, end))
+                .thenReturn(payments);
 
         BigDecimal result = paymentService.getTotalSumForAll(start, end);
 
-        assertThat(result).isEqualByComparingTo(expectedSum);
-        verify(paymentRepository).getTotalSumForDateRange(start, end);
+        assertThat(result).isEqualByComparingTo("500.75");
+        verify(paymentRepository).findByTimestampBetween(start, end);
     }
 
     @Test
-    void getTotalSumForAll_NullResult() {
-        Instant start = Instant.now().minusSeconds(3600);
-        Instant end = Instant.now();
-        when(paymentRepository.getTotalSumForDateRange(start, end)).thenReturn(null);
+    void getTotalSumForAll_EmptyResult() {
+        when(paymentRepository.findByTimestampBetween(start, end))
+                .thenReturn(List.of());
 
         BigDecimal result = paymentService.getTotalSumForAll(start, end);
 
         assertThat(result).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void getTotalSumForUser_ReturnZeroWhenEmpty() {
+        when(paymentRepository.findByUserIdAndTimestampBetween(any(), any(), any()))
+                .thenReturn(List.of());
+
+        BigDecimal result = paymentService.getTotalSumForUser(userId, start, end);
+
+        assertThat(result).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    void getTotalSumForUser_Success() {
+        List<Payment> payments = List.of(
+                Payment.builder()
+                        .paymentAmount(new BigDecimal("100.00"))
+                        .build(),
+                Payment.builder()
+                        .paymentAmount(new BigDecimal("50.25"))
+                        .build()
+        );
+
+        when(paymentRepository.findByUserIdAndTimestampBetween(userId, start, end))
+                .thenReturn(payments);
+
+        BigDecimal result = paymentService.getTotalSumForUser(userId, start, end);
+
+        assertThat(result).isEqualByComparingTo("150.25");
+        verify(paymentRepository).findByUserIdAndTimestampBetween(userId, start, end);
     }
 }

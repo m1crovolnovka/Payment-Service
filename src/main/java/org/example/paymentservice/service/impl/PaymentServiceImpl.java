@@ -5,6 +5,7 @@ import org.example.paymentservice.client.RandomServiceClient;
 import org.example.paymentservice.dto.PaymentEventDto;
 import org.example.paymentservice.dto.PaymentRequestDto;
 import org.example.paymentservice.dto.PaymentResponseDto;
+import org.example.paymentservice.dto.TotalAmountProjection;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.entity.PaymentStatus;
 import org.example.paymentservice.mapper.PaymentMapper;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -109,14 +111,24 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional(readOnly = true)
     public BigDecimal getTotalSumForUser(UUID userId, Instant startDate, Instant endDate) {
-        BigDecimal sum = paymentRepository.getTotalSumByUserIdAndDateRange(userId.toString(), startDate, endDate);
-        return sum != null ? sum : BigDecimal.ZERO;
+        return paymentRepository
+                .findByUserIdAndTimestampBetween(userId, startDate, endDate)
+                .stream()
+                .map(Payment::getPaymentAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Override
     @Transactional(readOnly = true)
     public BigDecimal getTotalSumForAll(Instant startDate, Instant endDate) {
-        BigDecimal sum = paymentRepository.getTotalSumForDateRange(startDate, endDate);
-        return sum != null ? sum : BigDecimal.ZERO;
+        return paymentRepository
+                .findByTimestampBetween(startDate, endDate)
+                .stream()
+                .map(Payment::getPaymentAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+
 }
