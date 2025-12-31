@@ -1,5 +1,6 @@
 package org.example.paymentservice.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.paymentservice.client.RandomServiceClient;
 import org.example.paymentservice.dto.PaymentEventDto;
 import org.example.paymentservice.dto.PaymentRequestDto;
@@ -13,11 +14,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.ObjectMapper;
-
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
