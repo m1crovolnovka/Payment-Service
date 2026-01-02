@@ -51,6 +51,8 @@ class PaymentIntegrationTest {
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
         registry.add("random-service.url", () -> "http://localhost:" + System.getProperty("wiremock.server.port"));
+        registry.add("spring.kafka.bootstrap-servers",
+                () -> TestContainersConfig.kafka.getBootstrapServers());
     }
 
     @BeforeEach
