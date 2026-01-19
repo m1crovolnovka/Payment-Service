@@ -28,6 +28,7 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/payments/{paymentId}").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/payments/user/{userId}").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/payments/order/{orderId}").authenticated()
