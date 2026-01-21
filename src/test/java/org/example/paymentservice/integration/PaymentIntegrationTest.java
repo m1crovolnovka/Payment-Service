@@ -1,10 +1,14 @@
 package org.example.paymentservice.integration;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import org.example.paymentservice.dto.PaymentRequestDto;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.entity.PaymentStatus;
 import org.example.paymentservice.repository.PaymentRepository;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +41,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(TestContainersConfig.class)
 @AutoConfigureWireMock(port = 0)
 class PaymentIntegrationTest {
+
+    private static final WireMockServer WIRE_MOCK_SERVER = new WireMockServer(
+            WireMockConfiguration.wireMockConfig().dynamicPort()
+    );
+
+    @BeforeAll
+    static void startWireMock() {
+        WIRE_MOCK_SERVER.start();
+    }
+
+    @AfterAll
+    static void stopWireMock() {
+        WIRE_MOCK_SERVER.stop();
+    }
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -50,11 +69,14 @@ class PaymentIntegrationTest {
     private ObjectMapper objectMapper;
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
-        registry.add("random-service.url", () -> "http://localhost:" + System.getProperty("wiremock.server.port"));
+        registry.add("random-service.url", () -> "http://localhost:" + WIRE_MOCK_SERVER.port());
+        registry.add("spring.kafka.bootstrap-servers",
+                () -> TestContainersConfig.kafka.getBootstrapServers());
     }
 
     @BeforeEach
     void cleanUp() {
+        WIRE_MOCK_SERVER.resetAll();
         paymentRepository.deleteAll();
     }
 
@@ -63,7 +85,7 @@ class PaymentIntegrationTest {
         UUID orderId = UUID.randomUUID();
         UUID userId = UUID.randomUUID();
         PaymentRequestDto request = new PaymentRequestDto(userId, orderId, new BigDecimal("100.00"));
-        stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathMatching("/.*"))
+        WIRE_MOCK_SERVER.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathMatching("/.*"))
                 .willReturn(aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "text/plain")
@@ -87,7 +109,7 @@ class PaymentIntegrationTest {
     void shouldSetFailedStatusOnServiceError() throws Exception {
         UUID orderId = UUID.randomUUID();
         PaymentRequestDto request = new PaymentRequestDto(UUID.randomUUID(), orderId, new BigDecimal("50.0"));
-        stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathMatching("/.*"))
+        WIRE_MOCK_SERVER.stubFor(com.github.tomakehurst.wiremock.client.WireMock.get(urlPathMatching("/.*"))
                 .willReturn(aResponse().withStatus(500)));
         kafkaTemplate.send("payment-requests", orderId.toString(), objectMapper.writeValueAsBytes(request));
         await()
