@@ -1,16 +1,15 @@
 package org.example.paymentservice.dto;
 
 import org.example.paymentservice.entity.PaymentStatus;
-
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
-public record PaymentResponse(
-        UUID id,
+public record PaymentResponseDto(
+        String id,
         UUID orderId,
         UUID userId,
         PaymentStatus status,
         BigDecimal paymentAmount,
-        OffsetDateTime timestamp
+        Instant timestamp
 ) {}

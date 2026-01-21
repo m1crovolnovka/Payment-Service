@@ -1,44 +1,36 @@
 package org.example.paymentservice.entity;
 
-import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.*;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.mongodb.core.mapping.FieldType;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
-@Entity
-@Table(name = "payments")
+
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Document(collection = "payments")
 public class Payment {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+    private String id;
 
-    @Column(name = "order_id", nullable = false)
+    @Field(targetType = FieldType.STRING)
     private UUID orderId;
 
-    @Column(name = "user_id", nullable = false)
+    @Field(targetType = FieldType.STRING)
     private UUID userId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
     private PaymentStatus status;
 
-    @Column(name = "payment_amount", nullable = false)
     private BigDecimal paymentAmount;
 
-    @CreationTimestamp
-    @Column(name = "timestamp", nullable = false, updatable = false)
-    private OffsetDateTime timestamp;
-
+    @Builder.Default
+    private Instant timestamp = Instant.now();
 }

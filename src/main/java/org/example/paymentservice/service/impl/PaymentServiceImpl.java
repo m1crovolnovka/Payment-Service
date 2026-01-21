@@ -1,19 +1,24 @@
 package org.example.paymentservice.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.paymentservice.client.RandomServiceClient;
-import org.example.paymentservice.dto.PaymentRequest;
-import org.example.paymentservice.dto.PaymentResponse;
+import org.example.paymentservice.dto.PaymentEventDto;
+import org.example.paymentservice.dto.PaymentRequestDto;
+import org.example.paymentservice.dto.PaymentResponseDto;
+import org.example.paymentservice.dto.TotalAmountProjection;
 import org.example.paymentservice.entity.Payment;
 import org.example.paymentservice.entity.PaymentStatus;
 import org.example.paymentservice.mapper.PaymentMapper;
 import org.example.paymentservice.repository.PaymentRepository;
 import org.example.paymentservice.service.PaymentService;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -22,28 +27,66 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentMapper paymentMapper;
     private final RandomServiceClient randomServiceClient;
+    private final KafkaTemplate<String, byte[]> kafkaTemplate;
+    private final ObjectMapper objectMapper;
 
-    public PaymentServiceImpl(PaymentRepository paymentRepository, PaymentMapper paymentMapper, RandomServiceClient randomServiceClient) {
+    public PaymentServiceImpl(PaymentRepository paymentRepository, PaymentMapper paymentMapper, RandomServiceClient randomServiceClient, KafkaTemplate<String, byte[]> kafkaTemplate, ObjectMapper objectMapper) {
         this.paymentRepository = paymentRepository;
         this.paymentMapper = paymentMapper;
         this.randomServiceClient = randomServiceClient;
+        this.kafkaTemplate = kafkaTemplate;
+        this.objectMapper = objectMapper;
+    }
+
+    @KafkaListener(
+            topics = "payment-requests",
+            groupId = "payment-service-group",
+            containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void handlePaymentRequest(byte[] data) {
+        try {
+            PaymentRequestDto request = objectMapper.readValue(data, PaymentRequestDto.class);
+            this.createPayment(request);
+        } catch (Exception e) {
+            throw new RuntimeException("Error deserializing payment request", e);
+        }
     }
 
     @Override
     @Transactional
-    public PaymentResponse createPayment(PaymentRequest request) {
+    public PaymentResponseDto createPayment(PaymentRequestDto request) {
         Payment payment = paymentMapper.toEntity(request);
-        String response = randomServiceClient.getRandomNumber(1, 1, 100, 1, 10, "plain", "new");
-        int randomNumber = Integer.parseInt(response.trim());
-        PaymentStatus status = (randomNumber % 2 == 0) ? PaymentStatus.SUCCESS : PaymentStatus.FAILED;
-        payment.setStatus(status);
+        try {
+            String randomResponse = randomServiceClient.getRandomNumber(1, 1, 100, 1, 10, "plain", "new");
+            int randomNumber = Integer.parseInt(randomResponse.trim());
+            payment.setStatus(randomNumber % 2 == 0 ? PaymentStatus.SUCCESS : PaymentStatus.FAILED);
+        } catch (Exception e) {
+            payment.setStatus(PaymentStatus.FAILED);
+        }
         Payment savedPayment = paymentRepository.save(payment);
-        return paymentMapper.toResponse(savedPayment);
+        PaymentResponseDto responseDto = paymentMapper.toResponse(savedPayment);
+        sendResultToKafka(new PaymentEventDto(responseDto.orderId(), responseDto.status().name()));
+        return responseDto;
+    }
+
+    private void sendResultToKafka(PaymentEventDto responseDto) {
+        try {
+            byte[] data = objectMapper.writeValueAsBytes(responseDto);
+            kafkaTemplate.send("payment-results", responseDto.getOrderId().toString(), data);
+        } catch (Exception e) {
+            throw new RuntimeException("Error serializing payment response", e);
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentResponse> getPaymentsByUserId(UUID userId) {
+    public PaymentResponseDto getPaymentById(String id) {
+        return paymentRepository.findById(id).map(paymentMapper::toResponse).orElseThrow();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PaymentResponseDto> getPaymentsByUserId(UUID userId) {
         return paymentRepository.findByUserId(userId).stream()
                 .map(paymentMapper::toResponse)
                 .toList();
@@ -51,7 +94,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentResponse> getPaymentsByOrderId(UUID orderId) {
+    public List<PaymentResponseDto> getPaymentsByOrderId(UUID orderId) {
         return paymentRepository.findByOrderId(orderId).stream()
                 .map(paymentMapper::toResponse)
                 .toList();
@@ -59,7 +102,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentResponse> getPaymentsByStatus(PaymentStatus status) {
+    public List<PaymentResponseDto> getPaymentsByStatus(PaymentStatus status) {
         return paymentRepository.findByStatus(status).stream()
                 .map(paymentMapper::toResponse)
                 .toList();
@@ -67,15 +110,25 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional(readOnly = true)
-    public BigDecimal getTotalSumForUser(UUID userId, OffsetDateTime startDate, OffsetDateTime endDate) {
-        BigDecimal sum = paymentRepository.getTotalSumByUserIdAndDateRange(userId, startDate, endDate);
-        return sum != null ? sum : BigDecimal.ZERO;
+    public BigDecimal getTotalSumForUser(UUID userId, Instant startDate, Instant endDate) {
+        return paymentRepository
+                .findByUserIdAndTimestampBetween(userId, startDate, endDate)
+                .stream()
+                .map(Payment::getPaymentAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public BigDecimal getTotalSumForAll(OffsetDateTime startDate, OffsetDateTime endDate) {
-        BigDecimal sum = paymentRepository.getTotalSumForDateRange(startDate, endDate);
-        return sum != null ? sum : BigDecimal.ZERO;
+    public BigDecimal getTotalSumForAll(Instant startDate, Instant endDate) {
+        return paymentRepository
+                .findByTimestampBetween(startDate, endDate)
+                .stream()
+                .map(Payment::getPaymentAmount)
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
+
+
 }
