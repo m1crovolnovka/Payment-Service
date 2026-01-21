@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 @FeignClient(
         name = "random-service-client",
-        url = "https://www.random.org"
+        url = "${random-service.url}"
 )
 public interface RandomServiceClient {
 

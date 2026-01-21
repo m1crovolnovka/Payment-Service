@@ -1,4 +1,20 @@
+version: '3.9'
+
 services:
+  payment-mongodb:
+    image: mongo:latest
+    container_name: payment_mongodb
+    env_file:
+      - .env.docker
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=payment_user
+      - MONGO_INITDB_ROOT_PASSWORD=payment_pass
+      - MONGO_INITDB_DATABASE=payment_db
+    networks:
+      - payment-network
+
   kafka:
     image: confluentinc/cp-kafka:7.6.0
     container_name: kafka
@@ -17,29 +33,23 @@ services:
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
       KAFKA_CONTROLLER_LOG_DIRS: '/var/lib/kafka/data'
     networks:
-      - microservice-network
+      - payment-network
 
-  mongodb:
-    image: mongo:latest
-    container_name: payment-mongodb
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: payment_service
     ports:
-      - "27017:27017"
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=payment_user
-      - MONGO_INITDB_ROOT_PASSWORD=payment_pass
-      - MONGO_INITDB_DATABASE=payment_db
+      - "8086:8086"
+    env_file:
+      - .env.docker
+    depends_on:
+      - payment-mongodb
+      - kafka
     networks:
-      - microservice-network
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092 # Внутри докера используем внутренний порт
-    networks:
-      - microservice-network
+      - payment-network
+
 networks:
-  microservice-network:
+  payment-network:
     driver: bridge
